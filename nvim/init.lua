@@ -25,20 +25,56 @@ end
 
 require "lazy_setup"
 require "polish"
-require "highlights"
-vim.api.nvim_set_hl(0, "Normal", { bg = "none" })
-vim.api.nvim_set_hl(0, "NormalFloat", { bg = "none" })
-vim.api.nvim_create_autocmd("ColorScheme", {
-  callback = function()
-    for _, group in ipairs({
-      "Normal", "NormalNC", "NormalFloat", "SignColumn",
-      "EndOfBuffer", "MsgArea", "WinSeparator", "StatusLine",
-      "StatusLineNC", "VertSplit", "LineNr"
-    }) do
-      vim.api.nvim_set_hl(0, group, { bg = "none" })
+local function ensure_cmake_configured()
+    local build_dir = "build"
+    local compile_json = build_dir .. "/compile_commands.json"
+    if vim.fn.isdirectory(build_dir) == 0 or vim.fn.filereadable(compile_json) == 0 then
+        vim.cmd("!cmake -S . -B " .. build_dir .. " -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON")
+        vim.cmd("!ln -sf " .. compile_json .. " ./compile_commands.json")
     end
-  end,
-})
+end
 
+-- Build only
+vim.api.nvim_create_user_command("Build", function()
+    ensure_cmake_configured()
+    vim.cmd("!cmake --build build")
+end, {})
 
+-- Build and run default target (main)
+vim.api.nvim_create_user_command("BR", function()
+    ensure_cmake_configured()
+    vim.cmd("!cmake --build build && ./build/main")
+end, {})
+
+-- Keymaps
+vim.keymap.set("n", "<leader>b", ":Build<CR>", { silent = false })
+vim.keymap.set("n", "<leader>r", ":BR<CR>", { silent = false })
+vim.keymap.set("n", "<leader>dd", ":DevdocsOpenFloat<CR>", { silent = true })
+
+vim.opt.termguicolors = true
+vim.opt.showtabline = 0
+vim.opt.foldcolumn = "0"
+vim.api.nvim_set_hl(0, "SignColumn", { bg = "#000000" })
+vim.api.nvim_set_hl(0, "LineNr", { bg = "#000000", fg = "#5B6268" })
+vim.api.nvim_set_hl(0, "CursorLineNr", { bg = "#000000", fg = "#FFFFFF" })
+vim.opt.wrap = false
+
+local conform = require("conform")
+
+conform.setup({
+  -- Defines the formatters to use for each file type.
+  formatters_by_ft = {
+    -- Use clang-format for C and C++ files.
+    c = { "clang_format" },
+    cpp = { "clang_format" },
+
+  },
+
+  format_on_save = {
+    timeout_ms = 500,
+    lsp_fallback = true,
+  },
+})-- install without yarn or npm
+vim.g.vimtex_view_method = 'zathura'
+vim.g.vimtex_compiler_method = 'latexmk'
 
